@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 PE Analyzer App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 PE Analyzer App</h1>
+
+        <!-- Student Name -->
+        <div class="name-input">
+            <input type="text" id="student-name" placeholder="Enter your name" />
+        </div>
+
+        <!-- Skill Selection -->
+        <div class="skill-selection">
+            <label for="skill-dropdown">Select Skill:</label>
+            <select id="skill-dropdown">
+                <option value="" disabled selected>Select a skill</option>
+            </select>
+        </div>
+
+        <!-- Video Recording -->
+        <div class="video-section">
+            <video id="video" autoplay muted></video>
+            <button id="record-btn">Start 3s Recording</button>
+            <div class="progress-bar">
+                <div class="progress"></div>
+            </div>
+        </div>
+
+        <!-- PE Buddy Feedback -->
+        <div class="feedback-section">
+            <h2>PE Buddy 💬</h2>
+            <div id="feedback"></div>
+        </div>
+
+        <!-- Chat Section -->
+        <div class="chat-section">
+            <input type="text" id="chat-input" placeholder="Ask PE Buddy a question..." />
+            <button id="chat-btn">➡️</button>
+            <div id="chat-box"></div>
+        </div>
+    </div>
+
+    <script>
+        const skills = {{ skills | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

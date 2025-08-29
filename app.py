@@ -1,74 +1,112 @@
-from flask import Flask, request, send_from_directory, jsonify
-import os
-import io
-import cv2
-from PIL import Image
-import google.generativeai as genai
-import re
+from flask import Flask, render_template, request, jsonify
+import random
 
 app = Flask(__name__)
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    raise ValueError("Please set your GEMINI_API_KEY environment variable.")
+skills = {
+    "Throws": ["underhand_throw", "overhead_throw", "sidearm_throw"],
+    "Volleyball": [
+        "volleyball_overhead_serve",
+        "volleyball_underhand_serve",
+        "volleyball_forearm_pass",
+        "volleyball_overhead_pass",
+        "volleyball_block",
+        "volleyball_pass"
+    ]
+}
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Predefined feedback dictionary
+feedback_dict = {
+    "underhand_throw": [
+        {"stars":5,"feedback":"Excellent underhand throw!"},
+        {"stars":4,"feedback":"Very good underhand throw!"},
+        {"stars":3,"feedback":"Good effort! Practice your underhand throw technique."},
+        {"stars":2,"feedback":"Needs improvement. Focus on stance and follow-through."},
+        {"stars":1,"feedback":"Keep trying! Watch your form carefully."}
+    ],
+    "overhead_throw":[
+        {"stars":5,"feedback":"Excellent overhead throw!"},
+        {"stars":4,"feedback":"Very good overhead throw!"},
+        {"stars":3,"feedback":"Good effort! Practice your overhead throw technique."},
+        {"stars":2,"feedback":"Needs improvement. Focus on arm motion and follow-through."},
+        {"stars":1,"feedback":"Keep trying! Watch your overhead form."}
+    ],
+    "sidearm_throw":[
+        {"stars":5,"feedback":"Excellent sidearm throw!"},
+        {"stars":4,"feedback":"Very good sidearm throw!"},
+        {"stars":3,"feedback":"Good effort! Practice your sidearm throw technique."},
+        {"stars":2,"feedback":"Needs improvement. Focus on stance and wrist action."},
+        {"stars":1,"feedback":"Keep trying! Watch your sidearm form."}
+    ],
+    "volleyball_overhead_serve":[
+        {"stars":5,"feedback":"Excellent overhead serve!"},
+        {"stars":4,"feedback":"Very good overhead serve!"},
+        {"stars":3,"feedback":"Good effort! Keep practicing your serve."},
+        {"stars":2,"feedback":"Needs improvement. Focus on toss and follow-through."},
+        {"stars":1,"feedback":"Keep trying! Watch your arm swing."}
+    ],
+    "volleyball_underhand_serve":[
+        {"stars":5,"feedback":"Excellent underhand serve!"},
+        {"stars":4,"feedback":"Very good underhand serve!"},
+        {"stars":3,"feedback":"Good effort! Keep practicing your serve."},
+        {"stars":2,"feedback":"Needs improvement. Focus on swing and aim."},
+        {"stars":1,"feedback":"Keep trying! Watch your form."}
+    ],
+    "volleyball_forearm_pass":[
+        {"stars":5,"feedback":"Excellent forearm pass!"},
+        {"stars":4,"feedback":"Very good forearm pass!"},
+        {"stars":3,"feedback":"Good effort! Keep practicing your technique."},
+        {"stars":2,"feedback":"Needs improvement. Focus on stance and platform."},
+        {"stars":1,"feedback":"Keep trying! Watch your positioning."}
+    ],
+    "volleyball_overhead_pass":[
+        {"stars":5,"feedback":"Excellent overhead pass!"},
+        {"stars":4,"feedback":"Very good overhead pass!"},
+        {"stars":3,"feedback":"Good effort! Keep practicing your overhead pass."},
+        {"stars":2,"feedback":"Needs improvement. Focus on hand position and follow-through."},
+        {"stars":1,"feedback":"Keep trying! Watch your technique."}
+    ],
+    "volleyball_block":[
+        {"stars":5,"feedback":"Excellent block!"},
+        {"stars":4,"feedback":"Very good block!"},
+        {"stars":3,"feedback":"Good effort! Keep practicing your timing."},
+        {"stars":2,"feedback":"Needs improvement. Focus on jump and hand position."},
+        {"stars":1,"feedback":"Keep trying! Watch your stance."}
+    ],
+    "volleyball_pass":[
+        {"stars":5,"feedback":"Excellent pass!"},
+        {"stars":4,"feedback":"Very good pass!"},
+        {"stars":3,"feedback":"Good effort! Keep practicing your technique."},
+        {"stars":2,"feedback":"Needs improvement. Focus on stance and direction."},
+        {"stars":1,"feedback":"Keep trying! Watch your form."}
+    ]
+}
 
 @app.route('/')
-def home():
-    return send_from_directory('.', 'index.html')
+def index():
+    return render_template('index.html', skills=skills)
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    sport = request.form.get('sport', 'general')
-    skill = request.form.get('skill', 'general')
-    video = request.files.get('video')
+    data = request.json
+    name = data.get('name', 'Student')
+    skill = data.get('skill')
+    frames = data.get('frames', [])
 
-    if not video:
-        return jsonify({"error": "No video uploaded"}), 400
+    # Simulate AI rating (replace with actual AI call later)
+    rating = random.choices([1,2,3,4,5], weights=[1,1,2,4,7])[0]
 
-    temp_video_path = 'temp_chunk.webm'
-    video.save(temp_video_path)
+    # Get feedback
+    skill_feedback_list = feedback_dict.get(skill, [])
+    feedback_entry = next((f for f in skill_feedback_list if f["stars"] == rating), None)
+    feedback_text = feedback_entry["feedback"] if feedback_entry else "Keep practicing!"
 
-    cap = cv2.VideoCapture(temp_video_path)
-    ret, frame = cap.read()
-    cap.release()
-
-    if not ret:
-        return jsonify({"error": "Failed to read video frame"}), 400
-
-    _, jpeg = cv2.imencode('.jpg', frame)
-    image_bytes = jpeg.tobytes()
-
-    prompt = (
-        f"Evaluate the student's performance in {sport} "
-        f"for the skill: {skill}. "
-        "Provide a rating out of 10, detailed feedback, and next steps to improve."
-    )
-
-    try:
-        response = model.generate_content([
-            prompt,
-            Image.open(io.BytesIO(image_bytes))
-        ])
-        feedback_text = response.text.strip()
-
-        rating = "AI generated"
-        match = re.search(r'(\d+(\.\d+)?)\s*(/|out of)?\s*10', feedback_text, re.IGNORECASE)
-        if match:
-            rating = match.group(1)
-    except Exception as e:
-        feedback_text = f"⚠️ Gemini Error: {e}"
-        rating = "N/A"
-
-    if os.path.exists(temp_video_path):
-        os.remove(temp_video_path)
-
+    # Return name, skill, rating, feedback
     return jsonify({
+        "name": name,
+        "skill": skill.replace("_", " ").title(),
         "rating": rating,
-        "feedback": feedback_text,
-        "next_steps": "Included in feedback."
+        "feedback": feedback_text
     })
 
 if __name__ == '__main__':
