@@ -1,54 +1,175 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎯 PE Analyzer App</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="UTF-8">
+  <title>PE Analyzer App</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    body {
+      font-family: "Comic Sans MS", sans-serif;
+      background: linear-gradient(to right, #ffdde1, #ee9ca7);
+      text-align: center;
+      padding: 20px;
+    }
+    select, button {
+      font-size: 18px;
+      padding: 10px;
+      margin: 10px;
+      border-radius: 12px;
+    }
+    #progressBar {
+      width: 0;
+      height: 20px;
+      background: purple;
+      margin: 20px auto;
+      border-radius: 10px;
+      transition: width 3s linear;
+    }
+    #feedback {
+      font-size: 20px;
+      margin-top: 20px;
+    }
+    .stars {
+      font-size: 28px;
+      margin-top: 10px;
+    }
+    .rainbow { 
+      background: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    #chatBox {
+      margin-top: 20px;
+      padding: 10px;
+      background: #fff8dc;
+      border-radius: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    video {
+      width: 300px;
+      margin-top: 10px;
+      border-radius: 12px;
+      border: 3px solid #6a0dad;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎯 PE Analyzer App</h1>
+  <h1>PE Analyzer App</h1>
 
-        <!-- Student Name -->
-        <div class="name-input">
-            <input type="text" id="student-name" placeholder="Enter your name" />
-        </div>
+  <label for="skill">Choose a skill:</label>
+  <select id="skill">
+    {% for s in skills %}
+      <option value="{{ s }}">{{ s.replace('_',' ').title() }}</option>
+    {% endfor %}
+  </select>
 
-        <!-- Skill Selection -->
-        <div class="skill-selection">
-            <label for="skill-dropdown">Select Skill:</label>
-            <select id="skill-dropdown">
-                <option value="" disabled selected>Select a skill</option>
-            </select>
-        </div>
+  <br>
+  <button onclick="startRecording()">Start 3s Recording</button>
 
-        <!-- Video Recording -->
-        <div class="video-section">
-            <video id="video" autoplay muted></video>
-            <button id="record-btn">Start 3s Recording</button>
-            <div class="progress-bar">
-                <div class="progress"></div>
-            </div>
-        </div>
+  <div id="progressBar"></div>
+  <video id="preview" autoplay playsinline muted></video>
 
-        <!-- PE Buddy Feedback -->
-        <div class="feedback-section">
-            <h2>PE Buddy 💬</h2>
-            <div id="feedback"></div>
-        </div>
+  <div id="feedback"></div>
+  <div class="stars" id="stars"></div>
 
-        <!-- Chat Section -->
-        <div class="chat-section">
-            <input type="text" id="chat-input" placeholder="Ask PE Buddy a question..." />
-            <button id="chat-btn">➡️</button>
-            <div id="chat-box"></div>
-        </div>
-    </div>
+  <div>
+    <h2>PE Buddy Chat 🤖</h2>
+    <input type="text" id="chatInput" placeholder="Ask PE Buddy...">
+    <button onclick="sendMessage()">➡️</button>
+    <div id="chatBox"></div>
+  </div>
 
-    <script>
-        const skills = {{ skills | tojson }};
-    </script>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <audio id="cheerSound" src="/static/cheer.mp3"></audio>
+  <canvas id="confetti-canvas"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <script>
+    let mediaRecorder;
+    let recordedChunks = [];
+
+    async function startRecording() {
+      let bar = document.getElementById("progressBar");
+      bar.style.width = "0";
+      setTimeout(()=> bar.style.width = "100%", 100);
+
+      const preview = document.getElementById("preview");
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }, audio: false
+        });
+        preview.srcObject = stream;
+
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+
+        mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          uploadVideo(blob);
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setTimeout(()=> mediaRecorder.stop(), 3000);
+
+      } catch (err) {
+        alert("Camera access failed: " + err);
+      }
+    }
+
+    function uploadVideo(blob) {
+      document.getElementById("feedback").innerText = "Analyzing...";
+
+      const formData = new FormData();
+      formData.append("video", blob, "recording.webm");
+      formData.append("skill", document.getElementById("skill").value);
+
+      fetch("/analyze", { method:"POST", body: formData })
+      .then(r=>r.json()).then(data=>{
+        if(data.error){
+          document.getElementById("feedback").innerText = "Error: " + data.error;
+          return;
+        }
+
+        document.getElementById("feedback").innerText = data.feedback;
+
+        // Render stars
+        let starsHTML = "";
+        for (let i=0; i<data.stars; i++) starsHTML+='<i class="fa-solid fa-star"></i>';
+        for (let i=data.stars; i<5; i++) starsHTML+='<i class="fa-regular fa-star"></i>';
+
+        if(data.stars === 5){
+          document.getElementById("stars").innerHTML = `<span class="rainbow">${starsHTML}</span>`;
+          document.getElementById("cheerSound").play();
+
+          const myConfetti = confetti.create(document.getElementById('confetti-canvas'), {
+            resize: true,
+            useWorker: true
+          });
+          myConfetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        } else {
+          document.getElementById("stars").innerHTML = starsHTML;
+        }
+      });
+    }
+
+    function sendMessage(){
+      let msg = document.getElementById("chatInput").value;
+      fetch("/chat", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({message: msg})
+      }).then(r=>r.json()).then(data=>{
+        document.getElementById("chatBox").innerHTML += "<p><b>You:</b> "+msg+"</p>";
+        document.getElementById("chatBox").innerHTML += "<p><b>PE Buddy:</b> "+data.reply+"</p>";
+        document.getElementById("chatInput").value = "";
+      });
+    }
+  </script>
 </body>
 </html>

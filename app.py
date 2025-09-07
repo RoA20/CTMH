@@ -1,113 +1,114 @@
+import os
+import tempfile
+import cv2
 from flask import Flask, render_template, request, jsonify
-import random
+from dotenv import load_dotenv
+import google.generativeai as genai
+import subprocess
+import json
+
+# Load environment variables
+load_dotenv()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 app = Flask(__name__)
 
-skills = {
-    "Throws": ["underhand_throw", "overhead_throw", "sidearm_throw"],
-    "Volleyball": [
-        "volleyball_overhead_serve",
-        "volleyball_underhand_serve",
-        "volleyball_forearm_pass",
-        "volleyball_overhead_pass",
-        "volleyball_block",
-        "volleyball_pass"
-    ]
-}
+# Skills dropdown
+SKILLS = [
+    "underhand_throw", "overhead_throw", "sidearm_throw",
+    "volleyball_underhand_serve", "volleyball_overhead_serve",
+    "volleyball_forearm_pass", "volleyball_overhead_pass",
+    "volleyball_block", "volleyball_pass"
+]
 
-# Predefined feedback dictionary
-feedback_dict = {
-    "underhand_throw": [
-        {"stars":5,"feedback":"Excellent underhand throw!"},
-        {"stars":4,"feedback":"Very good underhand throw!"},
-        {"stars":3,"feedback":"Good effort! Practice your underhand throw technique."},
-        {"stars":2,"feedback":"Needs improvement. Focus on stance and follow-through."},
-        {"stars":1,"feedback":"Keep trying! Watch your form carefully."}
-    ],
-    "overhead_throw":[
-        {"stars":5,"feedback":"Excellent overhead throw!"},
-        {"stars":4,"feedback":"Very good overhead throw!"},
-        {"stars":3,"feedback":"Good effort! Practice your overhead throw technique."},
-        {"stars":2,"feedback":"Needs improvement. Focus on arm motion and follow-through."},
-        {"stars":1,"feedback":"Keep trying! Watch your overhead form."}
-    ],
-    "sidearm_throw":[
-        {"stars":5,"feedback":"Excellent sidearm throw!"},
-        {"stars":4,"feedback":"Very good sidearm throw!"},
-        {"stars":3,"feedback":"Good effort! Practice your sidearm throw technique."},
-        {"stars":2,"feedback":"Needs improvement. Focus on stance and wrist action."},
-        {"stars":1,"feedback":"Keep trying! Watch your sidearm form."}
-    ],
-    "volleyball_overhead_serve":[
-        {"stars":5,"feedback":"Excellent overhead serve!"},
-        {"stars":4,"feedback":"Very good overhead serve!"},
-        {"stars":3,"feedback":"Good effort! Keep practicing your serve."},
-        {"stars":2,"feedback":"Needs improvement. Focus on toss and follow-through."},
-        {"stars":1,"feedback":"Keep trying! Watch your arm swing."}
-    ],
-    "volleyball_underhand_serve":[
-        {"stars":5,"feedback":"Excellent underhand serve!"},
-        {"stars":4,"feedback":"Very good underhand serve!"},
-        {"stars":3,"feedback":"Good effort! Keep practicing your serve."},
-        {"stars":2,"feedback":"Needs improvement. Focus on swing and aim."},
-        {"stars":1,"feedback":"Keep trying! Watch your form."}
-    ],
-    "volleyball_forearm_pass":[
-        {"stars":5,"feedback":"Excellent forearm pass!"},
-        {"stars":4,"feedback":"Very good forearm pass!"},
-        {"stars":3,"feedback":"Good effort! Keep practicing your technique."},
-        {"stars":2,"feedback":"Needs improvement. Focus on stance and platform."},
-        {"stars":1,"feedback":"Keep trying! Watch your positioning."}
-    ],
-    "volleyball_overhead_pass":[
-        {"stars":5,"feedback":"Excellent overhead pass!"},
-        {"stars":4,"feedback":"Very good overhead pass!"},
-        {"stars":3,"feedback":"Good effort! Keep practicing your overhead pass."},
-        {"stars":2,"feedback":"Needs improvement. Focus on hand position and follow-through."},
-        {"stars":1,"feedback":"Keep trying! Watch your technique."}
-    ],
-    "volleyball_block":[
-        {"stars":5,"feedback":"Excellent block!"},
-        {"stars":4,"feedback":"Very good block!"},
-        {"stars":3,"feedback":"Good effort! Keep practicing your timing."},
-        {"stars":2,"feedback":"Needs improvement. Focus on jump and hand position."},
-        {"stars":1,"feedback":"Keep trying! Watch your stance."}
-    ],
-    "volleyball_pass":[
-        {"stars":5,"feedback":"Excellent pass!"},
-        {"stars":4,"feedback":"Very good pass!"},
-        {"stars":3,"feedback":"Good effort! Keep practicing your technique."},
-        {"stars":2,"feedback":"Needs improvement. Focus on stance and direction."},
-        {"stars":1,"feedback":"Keep trying! Watch your form."}
-    ]
-}
+# Gemini model
+model = genai.GenerativeModel("gemini-1.5-flash")
 
-@app.route('/')
+def extract_frames(video_path, num_frames=3):
+    """Extract evenly spaced frames from a video."""
+    frames = []
+    cap = cv2.VideoCapture(video_path)
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if total <= 0:
+        return frames
+
+    step = max(1, total // num_frames)
+    for i in range(0, total, step):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+        success, frame = cap.read()
+        if success:
+            tmp_file = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+            cv2.imwrite(tmp_file.name, frame)
+            frames.append(tmp_file.name)
+        if len(frames) >= num_frames:
+            break
+    cap.release()
+    return frames
+
+@app.route("/")
 def index():
-    return render_template('index.html', skills=skills)
+    return render_template("index.html", skills=SKILLS)
 
-@app.route('/analyze', methods=['POST'])
+@app.route("/analyze", methods=["POST"])
 def analyze():
-    data = request.json
-    name = data.get('name', 'Student')
-    skill = data.get('skill')
-    frames = data.get('frames', [])
+    try:
+        skill = request.form.get("skill")
+        video = request.files["video"]
 
-    # Simulate AI rating (replace with actual AI call later)
-    rating = random.choices([1,2,3,4,5], weights=[1,1,2,4,7])[0]
+        # Save uploaded .webm file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
+            video.save(tmp.name)
+            video_path = tmp.name
 
-    # Get feedback
-    skill_feedback_list = feedback_dict.get(skill, [])
-    feedback_entry = next((f for f in skill_feedback_list if f["stars"] == rating), None)
-    feedback_text = feedback_entry["feedback"] if feedback_entry else "Keep practicing!"
+        # Convert WebM to MP4
+        mp4_path = video_path.replace(".webm", ".mp4")
+        subprocess.run(["ffmpeg", "-y", "-i", video_path, mp4_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        video_path = mp4_path
 
-    # Return name, skill, rating, feedback
-    return jsonify({
-        "name": name,
-        "skill": skill.replace("_", " ").title(),
-        "rating": rating,
-        "feedback": feedback_text
-    })
+        # Extract frames
+        frames = extract_frames(video_path, num_frames=3)
+        if not frames:
+            return jsonify({"error": "No frames extracted from video."})
 
-if __name__ == '__main__':
+        # Force JSON output from Gemini
+        prompt = f"""
+        You are a PE teacher giving encouraging feedback.
+        The student is performing the skill: "{skill.replace('_',' ')}".
+        Look at the provided video frames.
+        Return your answer STRICTLY in JSON format with exactly these keys:
+        {{
+          "feedback": "short encouraging feedback (1-2 sentences)",
+          "stars": 1-5
+        }}
+        """
+
+        inputs = [prompt] + [genai.upload_file(frame) for frame in frames]
+        response = model.generate_content(inputs)
+
+        # Parse JSON response
+        text = response.text.strip()
+        try:
+            result = json.loads(text)
+        except Exception:
+            result = {"feedback": text, "stars": 3}  # fallback
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    try:
+        user_msg = request.json.get("message")
+        prompt = f"""
+        You are PE Buddy. A student asked: "{user_msg}".
+        Reply with simple, encouraging feedback (max 2 sentences).
+        """
+        response = model.generate_content(prompt)
+        return jsonify({"reply": response.text.strip()})
+    except Exception as e:
+        return jsonify({"reply": f"PE Buddy failed: {e}"})
+
+if __name__ == "__main__":
     app.run(debug=True)
