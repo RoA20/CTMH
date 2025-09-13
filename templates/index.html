@@ -4,53 +4,14 @@
   <meta charset="UTF-8">
   <title>PE Analyzer App</title>
   <style>
-    body {
-      font-family: "Comic Sans MS", sans-serif;
-      background: linear-gradient(to right, #ffdde1, #ee9ca7);
-      text-align: center;
-      padding: 20px;
-    }
-    select, button {
-      font-size: 18px;
-      padding: 10px;
-      margin: 10px;
-      border-radius: 12px;
-    }
-    #progressBar {
-      width: 0;
-      height: 20px;
-      background: purple;
-      margin: 20px auto;
-      border-radius: 10px;
-      transition: width 3s linear;
-    }
-    #feedback {
-      font-size: 20px;
-      margin-top: 20px;
-    }
-    .stars {
-      font-size: 28px;
-      margin-top: 10px;
-    }
-    .rainbow { 
-      background: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    #chatBox {
-      margin-top: 20px;
-      padding: 10px;
-      background: #fff8dc;
-      border-radius: 12px;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    video {
-      width: 300px;
-      margin-top: 10px;
-      border-radius: 12px;
-      border: 3px solid #6a0dad;
-    }
+    body { font-family: "Comic Sans MS", sans-serif; background: linear-gradient(to right, #ffdde1, #ee9ca7); text-align: center; padding: 20px; }
+    select, button { font-size: 18px; padding: 10px; margin: 10px; border-radius: 12px; }
+    #progressBar { width: 0; height: 20px; background: purple; margin: 20px auto; border-radius: 10px; transition: width 2s linear; }
+    #feedback { font-size: 20px; margin-top: 20px; }
+    .stars { font-size: 28px; margin-top: 10px; }
+    .rainbow { background: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    #chatBox { margin-top: 20px; padding: 10px; background: #fff8dc; border-radius: 12px; max-height: 200px; overflow-y: auto; }
+    video { width: 300px; margin-top: 10px; border-radius: 12px; border: 3px solid #6a0dad; }
   </style>
 </head>
 <body>
@@ -64,7 +25,7 @@
   </select>
 
   <br>
-  <button onclick="startRecording()">Start 3s Recording</button>
+  <button onclick="startRecording()">Start 2s Recording</button>
 
   <div id="progressBar"></div>
   <video id="preview" autoplay playsinline muted></video>
@@ -88,61 +49,50 @@
     let recordedChunks = [];
 
     async function startRecording() {
-      let bar = document.getElementById("progressBar");
+      const bar = document.getElementById("progressBar");
       bar.style.width = "0";
       setTimeout(()=> bar.style.width = "100%", 100);
 
       const preview = document.getElementById("preview");
-
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }, audio: false
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}, audio: false});
         preview.srcObject = stream;
 
         recordedChunks = [];
-        mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
-
-        mediaRecorder.ondataavailable = e => {
-          if (e.data.size > 0) recordedChunks.push(e.data);
-        };
-
+        mediaRecorder = new MediaRecorder(stream, {mimeType: "video/webm"});
+        mediaRecorder.ondataavailable = e => { if(e.data.size>0) recordedChunks.push(e.data); };
         mediaRecorder.onstop = () => {
-          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          const blob = new Blob(recordedChunks, {type:"video/webm"});
           uploadVideo(blob);
           stream.getTracks().forEach(track => track.stop());
         };
 
         mediaRecorder.start();
-        setTimeout(()=> mediaRecorder.stop(), 3000);
-
-      } catch (err) {
+        setTimeout(()=> mediaRecorder.stop(), 2000); // 2s recording
+      } catch(err){
         alert("Camera access failed: " + err);
       }
     }
 
     function uploadVideo(blob) {
       document.getElementById("feedback").innerText = "Analyzing...";
-
       const formData = new FormData();
       formData.append("video", blob, "recording.webm");
       formData.append("skill", document.getElementById("skill").value);
 
-      fetch("/analyze", { method:"POST", body: formData })
+      fetch("/analyze", {method:"POST", body: formData})
       .then(r=>r.json()).then(data=>{
         if(data.error){
           document.getElementById("feedback").innerText = "Error: " + data.error;
           return;
         }
         document.getElementById("feedback").innerText = data.feedback;
-        
-        // ⭐ Full stars + ☆ empty stars
+
         let stars = "⭐".repeat(data.stars) + "☆".repeat(5 - data.stars);
-        
         if(data.stars == 5){
           document.getElementById("stars").innerHTML = `<span class="rainbow">${stars}</span>`;
           document.getElementById("cheerSound").play();
-          confetti({particleCount: 150, spread: 70, origin: { y: 0.6 }});
+          confetti({particleCount: 150, spread: 70, origin:{y:0.6}});
         } else {
           document.getElementById("stars").innerText = stars;
         }
@@ -150,9 +100,10 @@
     }
 
     function sendMessage(){
-      let msg = document.getElementById("chatInput").value;
+      const msg = document.getElementById("chatInput").value;
       fetch("/chat", {
-        method:"POST", headers:{"Content-Type":"application/json"},
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
         body: JSON.stringify({message: msg})
       }).then(r=>r.json()).then(data=>{
         document.getElementById("chatBox").innerHTML += "<p><b>You:</b> "+msg+"</p>";
