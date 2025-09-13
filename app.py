@@ -24,24 +24,23 @@ SKILLS = [
 # Gemini model
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-def extract_frames(video_path, num_frames=3):
-    """Extract evenly spaced frames from a video."""
+def extract_frames(video_path, num_frames=2):
+    """Extract only a couple of frames to save memory (start + middle)."""
     frames = []
     cap = cv2.VideoCapture(video_path)
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     if total <= 0:
         return frames
 
-    step = max(1, total // num_frames)
-    for i in range(0, total, step):
-        cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+    # Pick first frame and a middle frame
+    indices = [0, total // 2] if num_frames >= 2 else [0]
+    for idx in indices:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
         success, frame = cap.read()
         if success:
             tmp_file = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
             cv2.imwrite(tmp_file.name, frame)
             frames.append(tmp_file.name)
-        if len(frames) >= num_frames:
-            break
     cap.release()
     return frames
 
@@ -55,22 +54,25 @@ def analyze():
         skill = request.form.get("skill")
         video = request.files["video"]
 
-        # Save uploaded .webm file
+        # Save uploaded .webm file to disk
         with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
             video.save(tmp.name)
             video_path = tmp.name
 
-        # Convert WebM to MP4
+        # Convert WebM → MP4 (overwrite quietly)
         mp4_path = video_path.replace(".webm", ".mp4")
-        subprocess.run(["ffmpeg", "-y", "-i", video_path, mp4_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", video_path, mp4_path],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         video_path = mp4_path
 
-        # Extract frames
-        frames = extract_frames(video_path, num_frames=3)
+        # Extract frames (low memory: only 2)
+        frames = extract_frames(video_path, num_frames=2)
         if not frames:
             return jsonify({"error": "No frames extracted from video."})
 
-        # Force JSON output from Gemini
+        # Prompt (force JSON)
         prompt = f"""
         You are a PE teacher giving encouraging feedback.
         The student is performing the skill: "{skill.replace('_',' ')}".
@@ -85,12 +87,13 @@ def analyze():
         inputs = [prompt] + [genai.upload_file(frame) for frame in frames]
         response = model.generate_content(inputs)
 
-        # Parse JSON response
+        # Parse Gemini output
         text = response.text.strip()
         try:
             result = json.loads(text)
         except Exception:
-            result = {"feedback": text, "stars": 3}  # fallback
+            # fallback: safe default
+            result = {"feedback": text, "stars": 3}
 
         return jsonify(result)
 
