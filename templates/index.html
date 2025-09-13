@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>PE Analyzer App</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
     body {
       font-family: "Comic Sans MS", sans-serif;
@@ -84,7 +83,6 @@
   <canvas id="confetti-canvas"></canvas>
 
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-
   <script>
     let mediaRecorder;
     let recordedChunks = [];
@@ -136,25 +134,17 @@
           document.getElementById("feedback").innerText = "Error: " + data.error;
           return;
         }
-
         document.getElementById("feedback").innerText = data.feedback;
-
-        // Render stars
-        let starsHTML = "";
-        for (let i=0; i<data.stars; i++) starsHTML+='<i class="fa-solid fa-star"></i>';
-        for (let i=data.stars; i<5; i++) starsHTML+='<i class="fa-regular fa-star"></i>';
-
-        if(data.stars === 5){
-          document.getElementById("stars").innerHTML = `<span class="rainbow">${starsHTML}</span>`;
+        
+        // ⭐ Full stars + ☆ empty stars
+        let stars = "⭐".repeat(data.stars) + "☆".repeat(5 - data.stars);
+        
+        if(data.stars == 5){
+          document.getElementById("stars").innerHTML = `<span class="rainbow">${stars}</span>`;
           document.getElementById("cheerSound").play();
-
-          const myConfetti = confetti.create(document.getElementById('confetti-canvas'), {
-            resize: true,
-            useWorker: true
-          });
-          myConfetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+          confetti({particleCount: 150, spread: 70, origin: { y: 0.6 }});
         } else {
-          document.getElementById("stars").innerHTML = starsHTML;
+          document.getElementById("stars").innerText = stars;
         }
       });
     }
