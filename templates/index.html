@@ -129,18 +129,16 @@
       formData.append("skill", document.getElementById("skill").value);
 
       fetch("/analyze", { method:"POST", body: formData })
-      .then(r=>r.json())
-      .then(data=>{
+      .then(r=>r.json()).then(data=>{
         if(data.error){
           document.getElementById("feedback").innerText = "Error: " + data.error;
           return;
         }
 
-        // Use only the feedback text
-        let feedback = data.feedback;
-        document.getElementById("feedback").innerText = feedback;
+        // Show plain text feedback
+        document.getElementById("feedback").innerText = data.feedback;
 
-        // ⭐ Full stars + ☆ empty stars
+        // Full and empty stars
         let stars = "⭐".repeat(data.stars) + "☆".repeat(5 - data.stars);
 
         if(data.stars === 5){
@@ -156,12 +154,9 @@
     function sendMessage(){
       let msg = document.getElementById("chatInput").value;
       fetch("/chat", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
+        method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({message: msg})
-      })
-      .then(r=>r.json())
-      .then(data=>{
+      }).then(r=>r.json()).then(data=>{
         document.getElementById("chatBox").innerHTML += "<p><b>You:</b> "+msg+"</p>";
         document.getElementById("chatBox").innerHTML += "<p><b>PE Buddy:</b> "+data.reply+"</p>";
         document.getElementById("chatInput").value = "";

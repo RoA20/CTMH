@@ -70,6 +70,7 @@ def analyze():
         inputs = [prompt] + [genai.upload_file(frames[0])]
         response = model.generate_content(inputs)
 
+        # Parse Gemini JSON safely
         text = response.text.strip()
         try:
             result = json.loads(text)
@@ -77,8 +78,8 @@ def analyze():
             # fallback if JSON parse fails
             result = {"feedback": text, "stars": 3}
 
-        # Ensure feedback is a string
-        feedback = result.get("feedback", "")
+        # Ensure feedback is plain text
+        feedback = str(result.get("feedback", "")).strip()
         stars = int(result.get("stars", 3))
 
         return jsonify({"feedback": feedback, "stars": stars})
