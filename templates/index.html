@@ -131,37 +131,35 @@
       fetch("/analyze", { method:"POST", body: formData })
       .then(r => r.json())
       .then(data => {
-        if (data.error) {
-          document.getElementById("feedback").innerText = "Error: " + data.error;
-          return;
-        }
-
-        // 🛠 Sanitize response so JSON never shows on screen
-        let feedbackText = "";
-        if (typeof data.feedback === "string") {
-          feedbackText = data.feedback;
-        } else if (typeof data === "string") {
+        // Parse feedback safely in case server returns stringified JSON
+        let feedbackText = data.feedback;
+        if (typeof feedbackText === "string" && feedbackText.trim().startsWith("{")) {
           try {
-            let parsed = JSON.parse(data);
-            feedbackText = parsed.feedback || data;
-            data.stars = parsed.stars || 3;
-          } catch {
-            feedbackText = data; // fallback if it's raw text
+            const parsed = JSON.parse(feedbackText);
+            feedbackText = parsed.feedback || feedbackText;
+            data.stars = parsed.stars || data.stars;
+          } catch(e) {
+            console.warn("Could not parse feedback JSON:", e);
           }
         }
 
+        // Update feedback
         document.getElementById("feedback").innerText = feedbackText;
 
-        // ⭐ Full stars + ☆ empty stars
+        // Update stars display (gold + empty stars)
         let stars = "⭐".repeat(data.stars) + "☆".repeat(5 - data.stars);
 
-        if (data.stars == 5) {
+        if (data.stars === 5) {
           document.getElementById("stars").innerHTML = `<span class="rainbow">${stars}</span>`;
           document.getElementById("cheerSound").play();
           confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
         } else {
           document.getElementById("stars").innerText = stars;
         }
+      })
+      .catch(err => {
+        document.getElementById("feedback").innerText = "Error: " + err;
+        console.error(err);
       });
     }
 
