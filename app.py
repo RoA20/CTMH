@@ -45,17 +45,17 @@ def analyze():
         skill = request.form.get("skill")
         video = request.files["video"]
 
-        # Save video to disk
+        # Save uploaded video
         with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
             video.save(tmp.name)
             video_path = tmp.name
 
-        # Extract only 1 frame (first frame)
+        # Extract first frame only
         frames = extract_single_frame(video_path)
         if not frames:
             return jsonify({"error": "No frame extracted from video."})
 
-        # Gemini prompt (force JSON)
+        # Prompt for Gemini (force JSON)
         prompt = f"""
         You are a PE teacher giving encouraging feedback.
         The student is performing the skill: "{skill.replace('_',' ')}".
@@ -74,9 +74,14 @@ def analyze():
         try:
             result = json.loads(text)
         except Exception:
+            # fallback if JSON parse fails
             result = {"feedback": text, "stars": 3}
 
-        return jsonify(result)
+        # Ensure feedback is a string
+        feedback = result.get("feedback", "")
+        stars = int(result.get("stars", 3))
+
+        return jsonify({"feedback": feedback, "stars": stars})
 
     except Exception as e:
         return jsonify({"error": str(e)})
