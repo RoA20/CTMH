@@ -129,16 +129,17 @@
       formData.append("skill", document.getElementById("skill").value);
 
       fetch("/analyze", { method:"POST", body: formData })
-      .then(r=>r.json()).then(data=>{
+      .then(r=>r.json())
+      .then(data=>{
         if(data.error){
           document.getElementById("feedback").innerText = "Error: " + data.error;
           return;
         }
 
-        // Show plain text feedback
+        // ✅ ONLY show feedback text, no JSON object
         document.getElementById("feedback").innerText = data.feedback;
 
-        // Full and empty stars
+        // ⭐ Stars
         let stars = "⭐".repeat(data.stars) + "☆".repeat(5 - data.stars);
 
         if(data.stars === 5){
