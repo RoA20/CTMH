@@ -4,7 +4,6 @@ import cv2
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 import google.generativeai as genai
-import json
 
 # Load environment variables
 load_dotenv()
@@ -55,32 +54,34 @@ def analyze():
         if not frames:
             return jsonify({"error": "No frame extracted from video."})
 
-        # Prompt for Gemini (force JSON)
+        # Prompt for Gemini (plain text only)
         prompt = f"""
         You are a PE teacher giving encouraging feedback.
         The student is performing the skill: "{skill.replace('_',' ')}".
         Look at the provided video frame.
-        Return your answer STRICTLY in JSON format with keys:
-        {{
-          "feedback": "short encouraging feedback (1-2 sentences)",
-          "stars": 1-5
-        }}
+        Respond with only 1–2 short sentences of feedback (no JSON, no formatting).
+        Also give a star rating (1–5).
+        Write it like this example:
+        Feedback: Great throw, keep your eyes on the target!
+        Stars: 3
         """
 
         inputs = [prompt] + [genai.upload_file(frames[0])]
         response = model.generate_content(inputs)
 
-        # Parse Gemini JSON safely
         text = response.text.strip()
-        try:
-            result = json.loads(text)
-        except Exception:
-            # fallback if JSON parse fails
-            result = {"feedback": text, "stars": 3}
 
-        # Ensure feedback is plain text
-        feedback = str(result.get("feedback", "")).strip()
-        stars = int(result.get("stars", 3))
+        # Parse Gemini plain response
+        feedback = ""
+        stars = 3
+        for line in text.splitlines():
+            if line.lower().startswith("feedback:"):
+                feedback = line.split(":", 1)[1].strip()
+            if line.lower().startswith("stars:"):
+                try:
+                    stars = int(line.split(":", 1)[1].strip())
+                except:
+                    stars = 3
 
         return jsonify({"feedback": feedback, "stars": stars})
 

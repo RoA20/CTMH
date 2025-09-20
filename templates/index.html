@@ -129,20 +129,17 @@
       formData.append("skill", document.getElementById("skill").value);
 
       fetch("/analyze", { method:"POST", body: formData })
-      .then(r=>r.json())
-      .then(data=>{
+      .then(r=>r.json()).then(data=>{
         if(data.error){
           document.getElementById("feedback").innerText = "Error: " + data.error;
           return;
         }
-
-        // ✅ ONLY show feedback text, no JSON object
         document.getElementById("feedback").innerText = data.feedback;
-
-        // ⭐ Stars
+        
+        // ⭐ Full stars + ☆ empty stars
         let stars = "⭐".repeat(data.stars) + "☆".repeat(5 - data.stars);
-
-        if(data.stars === 5){
+        
+        if(data.stars == 5){
           document.getElementById("stars").innerHTML = `<span class="rainbow">${stars}</span>`;
           document.getElementById("cheerSound").play();
           confetti({particleCount: 150, spread: 70, origin: { y: 0.6 }});
