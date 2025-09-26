@@ -19,8 +19,8 @@ SKILLS = [
     "volleyball_block", "volleyball_pass"
 ]
 
-# Gemini model
-model = genai.GenerativeModel("gemini-1.5-flash")
+# ✅ Use latest supported Gemini model
+model = genai.GenerativeModel("gemini-2.0-flash")
 
 def extract_single_frame(video_path):
     """Extract only the first frame to save memory."""
