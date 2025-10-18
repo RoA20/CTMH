@@ -4,8 +4,6 @@ import cv2
 from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
 from dotenv import load_dotenv
-from PIL import Image
-from transformers import BlipProcessor, BlipForConditionalGeneration
 
 # ----------------------------
 # Load environment
@@ -14,23 +12,6 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 app = Flask(__name__)
-
-# ----------------------------
-# Load small BLIP model (fits 512MB) at startup
-# ----------------------------
-processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-small")
-blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-small")
-
-def describe_frame(frame):
-    """
-    Convert an OpenCV BGR frame to text using BLIP small model.
-    """
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    img = Image.fromarray(rgb_frame)
-    inputs = processor(images=img, return_tensors="pt")
-    out = blip_model.generate(**inputs)
-    caption = processor.decode(out[0], skip_special_tokens=True)
-    return caption
 
 # ----------------------------
 # Skills dropdown
@@ -66,6 +47,26 @@ def index():
     return render_template("index.html", skills=SKILLS)
 
 # ----------------------------
+# Extract a single frame from video
+# ----------------------------
+def extract_frame(video_path):
+    cap = cv2.VideoCapture(video_path)
+    success, frame = cap.read()
+    cap.release()
+    if not success:
+        return None
+    return frame
+
+# ----------------------------
+# Generate simple text description for frame
+# ----------------------------
+def describe_frame(frame, skill):
+    """
+    Placeholder description for Render-friendly deployment.
+    """
+    return f"Student performing {skill.replace('_',' ')}, arms and legs visible, standing on the floor."
+
+# ----------------------------
 # Analyze route
 # ----------------------------
 @app.route("/analyze", methods=["POST"])
@@ -80,14 +81,12 @@ def analyze():
             video_path = tmp.name
 
         # Extract first frame
-        cap = cv2.VideoCapture(video_path)
-        success, frame = cap.read()
-        cap.release()
-        if not success:
+        frame = extract_frame(video_path)
+        if frame is None:
             return jsonify({"error": "No frame extracted from video."})
 
-        # Describe frame with BLIP small
-        frame_description = describe_frame(frame)
+        # Generate placeholder description
+        frame_description = describe_frame(frame, skill)
 
         # Prompt Gemini
         prompt = f"""
