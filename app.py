@@ -29,17 +29,6 @@ SKILLS = [
 model = genai.GenerativeModel("gemini-2.0-flash")
 
 # ----------------------------
-# Temporary test route
-# ----------------------------
-@app.route("/test-render")
-def test_render():
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "❌ GEMINI_API_KEY is NOT set on Render"
-    sdk_version = getattr(genai, "__version__", "Unknown")
-    return f"✅ GEMINI_API_KEY set (first 8 chars: {api_key[:8]})<br>✅ SDK version: {sdk_version}"
-
-# ----------------------------
 # Home page
 # ----------------------------
 @app.route("/")
