@@ -16,14 +16,14 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 app = Flask(__name__)
 
 # ----------------------------
-# Load BLIP model once at startup
+# Load small BLIP model (fits 512MB) at startup
 # ----------------------------
-processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-small")
+blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-small")
 
 def describe_frame(frame):
     """
-    Convert an OpenCV BGR frame to text using BLIP.
+    Convert an OpenCV BGR frame to text using BLIP small model.
     """
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     img = Image.fromarray(rgb_frame)
@@ -86,7 +86,7 @@ def analyze():
         if not success:
             return jsonify({"error": "No frame extracted from video."})
 
-        # Describe frame with BLIP
+        # Describe frame with BLIP small
         frame_description = describe_frame(frame)
 
         # Prompt Gemini
