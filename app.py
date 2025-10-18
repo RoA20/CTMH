@@ -4,38 +4,37 @@ import cv2
 from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
 from dotenv import load_dotenv
+from PIL import Image
+from transformers import BlipProcessor, BlipForConditionalGeneration
 
-# Load local .env (optional, for local testing)
+# ----------------------------
+# Load environment
+# ----------------------------
 load_dotenv()
-
-# Configure Gemini API key
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 app = Flask(__name__)
 
 # ----------------------------
-# TEMPORARY TEST ROUTE
+# Load BLIP model once at startup
 # ----------------------------
-@app.route("/test-render")
-def test_render():
-    # Check GEMINI_API_KEY
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return "❌ GEMINI_API_KEY is NOT set on Render"
+processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
 
-    # Check SDK version
-    sdk_version = getattr(genai, "__version__", "Unknown")
+def describe_frame(frame):
+    """
+    Convert an OpenCV BGR frame to text using BLIP.
+    """
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    img = Image.fromarray(rgb_frame)
+    inputs = processor(images=img, return_tensors="pt")
+    out = blip_model.generate(**inputs)
+    caption = processor.decode(out[0], skip_special_tokens=True)
+    return caption
 
-    # Try to configure Gemini with the key
-    try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        return f"✅ GEMINI_API_KEY is set (first 8 chars: {api_key[:8]})<br>✅ SDK version: {sdk_version}"
-    except Exception as e:
-        return f"⚠️ Error initializing Gemini: {e}<br>SDK version: {sdk_version}"
 # ----------------------------
-
 # Skills dropdown
+# ----------------------------
 SKILLS = [
     "underhand_throw", "overhead_throw", "sidearm_throw",
     "volleyball_underhand_serve", "volleyball_overhead_serve",
@@ -43,25 +42,32 @@ SKILLS = [
     "volleyball_block", "volleyball_pass"
 ]
 
-# ✅ Use latest supported Gemini model
+# ----------------------------
+# Gemini model
+# ----------------------------
 model = genai.GenerativeModel("gemini-2.0-flash")
 
-def extract_single_frame(video_path):
-    """Extract only the first frame to save memory."""
-    frames = []
-    cap = cv2.VideoCapture(video_path)
-    success, frame = cap.read()
-    if success:
-        tmp_file = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-        cv2.imwrite(tmp_file.name, frame)
-        frames.append(tmp_file.name)
-    cap.release()
-    return frames
+# ----------------------------
+# Temporary test route
+# ----------------------------
+@app.route("/test-render")
+def test_render():
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "❌ GEMINI_API_KEY is NOT set on Render"
+    sdk_version = getattr(genai, "__version__", "Unknown")
+    return f"✅ GEMINI_API_KEY set (first 8 chars: {api_key[:8]})<br>✅ SDK version: {sdk_version}"
 
+# ----------------------------
+# Home page
+# ----------------------------
 @app.route("/")
 def index():
     return render_template("index.html", skills=SKILLS)
 
+# ----------------------------
+# Analyze route
+# ----------------------------
 @app.route("/analyze", methods=["POST"])
 def analyze():
     try:
@@ -73,29 +79,31 @@ def analyze():
             video.save(tmp.name)
             video_path = tmp.name
 
-        # Extract first frame only
-        frames = extract_single_frame(video_path)
-        if not frames:
+        # Extract first frame
+        cap = cv2.VideoCapture(video_path)
+        success, frame = cap.read()
+        cap.release()
+        if not success:
             return jsonify({"error": "No frame extracted from video."})
 
-        # Prompt for Gemini (plain text only)
+        # Describe frame with BLIP
+        frame_description = describe_frame(frame)
+
+        # Prompt Gemini
         prompt = f"""
         You are a PE teacher giving encouraging feedback.
         The student is performing the skill: "{skill.replace('_',' ')}".
-        Look at the provided video frame.
+        Here is a description of the video frame: {frame_description}
         Respond with only 1–2 short sentences of feedback (no JSON, no formatting).
-        Also give a star rating (1–5).
-        Write it like this example:
+        Also give a star rating (1–5), like this example:
         Feedback: Great throw, keep your eyes on the target!
         Stars: 3
         """
 
-        inputs = [prompt] + [genai.upload_file(frames[0])]
-        response = model.generate_content(inputs)
-
+        response = model.generate_content(prompt=prompt)
         text = response.text.strip()
 
-        # Parse Gemini plain response
+        # Parse feedback and stars
         feedback = ""
         stars = 3
         for line in text.splitlines():
@@ -112,6 +120,9 @@ def analyze():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+# ----------------------------
+# Chat route
+# ----------------------------
 @app.route("/chat", methods=["POST"])
 def chat():
     try:
@@ -120,10 +131,11 @@ def chat():
         You are PE Buddy. A student asked: "{user_msg}".
         Reply with simple, encouraging feedback (max 2 sentences).
         """
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt=prompt)
         return jsonify({"reply": response.text.strip()})
     except Exception as e:
         return jsonify({"reply": f"PE Buddy failed: {e}"})
 
+# ----------------------------
 if __name__ == "__main__":
     app.run(debug=True)
