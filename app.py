@@ -78,7 +78,7 @@ def analyze():
         frame_description = describe_frame(frame, skill)
 
         # Prompt Gemini
-        prompt = f"""
+        prompt_text = f"""
         You are a PE teacher giving encouraging feedback.
         The student is performing the skill: "{skill.replace('_',' ')}".
         Here is a description of the video frame: {frame_description}
@@ -88,7 +88,7 @@ def analyze():
         Stars: 3
         """
 
-        response = model.generate_content(prompt=prompt)
+        response = model.generate_content(prompt_text)
         text = response.text.strip()
 
         # Parse feedback and stars
@@ -115,11 +115,11 @@ def analyze():
 def chat():
     try:
         user_msg = request.json.get("message")
-        prompt = f"""
+        prompt_text = f"""
         You are PE Buddy. A student asked: "{user_msg}".
         Reply with simple, encouraging feedback (max 2 sentences).
         """
-        response = model.generate_content(prompt=prompt)
+        response = model.generate_content(prompt_text)
         return jsonify({"reply": response.text.strip()})
     except Exception as e:
         return jsonify({"reply": f"PE Buddy failed: {e}"})
