@@ -2,14 +2,38 @@ import os
 import tempfile
 import cv2
 from flask import Flask, render_template, request, jsonify
-from dotenv import load_dotenv
 import google.generativeai as genai
+from dotenv import load_dotenv
 
-# Load environment variables
+# Load local .env (optional, for local testing)
 load_dotenv()
+
+# Configure Gemini API key
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 app = Flask(__name__)
+
+# ----------------------------
+# TEMPORARY TEST ROUTE
+# ----------------------------
+@app.route("/test-render")
+def test_render():
+    # Check GEMINI_API_KEY
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "❌ GEMINI_API_KEY is NOT set on Render"
+
+    # Check SDK version
+    sdk_version = getattr(genai, "__version__", "Unknown")
+
+    # Try to configure Gemini with the key
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        return f"✅ GEMINI_API_KEY is set (first 8 chars: {api_key[:8]})<br>✅ SDK version: {sdk_version}"
+    except Exception as e:
+        return f"⚠️ Error initializing Gemini: {e}<br>SDK version: {sdk_version}"
+# ----------------------------
 
 # Skills dropdown
 SKILLS = [
